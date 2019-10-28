@@ -282,6 +282,11 @@ def set_train_val_test_split(
 
 
 class PPRDataset(InMemoryDataset):
+    """
+    Dataset preprocessed with GDC using PPR diffusion.
+    Note that this implementations is not scalable
+    since we directly invert the adjacency matrix.
+    """
     def __init__(self,
                  name: str = 'Cora',
                  use_lcc: bool = True,
@@ -371,6 +376,12 @@ class PPRDataset(InMemoryDataset):
 
 # Use approximate heat matrix as described in Berberidis et al., 2019 (https://arxiv.org/abs/1804.02081)
 class HeatDataset(InMemoryDataset):
+    """
+    Dataset preprocessed with GDC using heat kernel diffusion.
+    Note that this implementations is not scalable
+    since we directly calculate the matrix exponential
+    of the adjacency matrix.
+    """
     def __init__(self,
                  name: str = 'Cora',
                  use_lcc: bool = True,

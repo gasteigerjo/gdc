@@ -237,20 +237,20 @@ def get_clipped_matrix(A, eps=0.01, normalization='col_one'):
     return A
 
 
-def set_train_val_test_split(seed, data, num_visible=1500, num_per_class=20, visible_seed=1684992425):
-    rnd_state = np.random.RandomState(visible_seed)
+def set_train_val_test_split(seed, data, num_development=1500, num_per_class=20, development_seed=1684992425):
+    rnd_state = np.random.RandomState(development_seed)
     num_nodes = data.y.shape[0]
-    visible_idx = rnd_state.choice(num_nodes, num_visible, replace=False)
-    test_idx = [i for i in np.arange(num_nodes) if i not in visible_idx]
+    development_idx = rnd_state.choice(num_nodes, num_development, replace=False)
+    test_idx = [i for i in np.arange(num_nodes) if i not in development_idx]
 
     train_idx = []
     rnd_state = np.random.RandomState(seed)
     num_classes = data.y.max() + 1
     for c in range(num_classes):
-        class_idx = visible_idx[np.where(data.y[visible_idx].cpu() == c)[0]]
+        class_idx = development_idx[np.where(data.y[development_idx].cpu() == c)[0]]
         train_idx.extend(rnd_state.choice(class_idx, num_per_class, replace=False))
 
-    val_idx = [i for i in visible_idx if i not in train_idx]
+    val_idx = [i for i in development_idx if i not in train_idx]
 
     def get_mask(idx):
         mask = torch.zeros(num_nodes, dtype=torch.uint8)

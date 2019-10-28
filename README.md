@@ -21,6 +21,7 @@ numpy
 scipy
 pytorch>=1.0
 pytorch_geometric
+tqdm
 seaborn
 ```
 

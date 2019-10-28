@@ -11,7 +11,7 @@ by Johannes Klicpera, Stefane Weißenberger, Stephan Günnemann
 Published at NeurIPS 2019.
 
 ## Run the code
-This repository primarily contains the example of using graph diffusion convolution (GDC) with GCN in the notebook `gdc_demo.ipynb`.
+This repository primarily contains a demonstration of enhancing a graph convolutional network (GCN) with graph diffusion convolution (GDC) in the notebook `gdc_demo.ipynb`.
 
 ## Requirements
 The repository uses these packages:

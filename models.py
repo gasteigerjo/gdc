@@ -1,16 +1,20 @@
+__author__ = "Stefan Weißenberger and Johannes Klicpera"
+__license__ = "MIT"
+
+from typing import List
+
 import torch
-
 import torch.nn.functional as F
-
 from torch.nn import Linear, ModuleList, Dropout, ReLU
 from torch_geometric.nn import GCNConv
+from torch_geometric.data import Data, InMemoryDataset
 
 
 class GCNConvNet(torch.nn.Module):
     def __init__(self,
-                 dataset,
-                 hidden=[64],
-                 dropout=0.5):
+                 dataset: InMemoryDataset,
+                 hidden: List[int] = [64],
+                 dropout: float = 0.5):
         super(GCNConvNet, self).__init__()
 
         num_features = [dataset.data.x.shape[1]] + hidden + [dataset.num_classes]
@@ -27,13 +31,11 @@ class GCNConvNet(torch.nn.Module):
         self.out_fn = lambda x: F.log_softmax(x, dim=1)
         self.act_fn = ReLU()
 
-        print(self)
-
     def reset_parameters(self):
         for layer in self.layers:
             layer.reset_parameters()
 
-    def forward(self, data):
+    def forward(self, data: Data):
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
 
         for i, layer in enumerate(self.layers):

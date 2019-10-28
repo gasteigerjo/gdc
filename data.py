@@ -1,17 +1,22 @@
+__author__ = "Stefan Weißenberger and Johannes Klicpera"
+__license__ = "MIT"
+
 import os
-import torch
 
 import numpy as np
-
 from scipy.linalg import expm
+
+import torch
 from torch_geometric.data import Data, InMemoryDataset
 from torch_geometric.datasets import Planetoid, Amazon, Coauthor
+
+from seeds import development_seed
 
 
 DATA_PATH = 'data'
 
 
-def get_dataset(name, use_lcc=True):
+def get_dataset(name: str, use_lcc: bool = True) -> InMemoryDataset:
     path = os.path.join(DATA_PATH, name)
     if name in ['Cora', 'Citeseer', 'Pubmed']:
         dataset = Planetoid(path, name)
@@ -45,7 +50,7 @@ def get_dataset(name, use_lcc=True):
     return dataset
 
 
-def get_component(dataset, start=0):
+def get_component(dataset: InMemoryDataset, start: int = 0) -> set:
     visited_nodes = set()
     queued_nodes = set([start])
     row, col = np.array(dataset.data.edge_index.detach().cpu())
@@ -58,7 +63,7 @@ def get_component(dataset, start=0):
     return visited_nodes
 
 
-def get_largest_connected_component(dataset):
+def get_largest_connected_component(dataset: InMemoryDataset) -> np.ndarray:
     remaining_nodes = set(range(dataset.data.x.shape[0]))
     comps = []
     while remaining_nodes:
@@ -69,7 +74,7 @@ def get_largest_connected_component(dataset):
     return np.array(list(comps[np.argmax(list(map(len, comps)))]))
 
 
-def get_node_mapper(lcc):
+def get_node_mapper(lcc: np.ndarray) -> dict:
     mapper = {}
     counter = 0
     for node in lcc:
@@ -78,7 +83,7 @@ def get_node_mapper(lcc):
     return mapper
 
 
-def remap_edges(edges, mapper):
+def remap_edges(edges: list, mapper: dict) -> list:
     row = [e[0] for e in edges]
     col = [e[1] for e in edges]
     row = list(map(lambda x: mapper[x], row))
@@ -86,7 +91,7 @@ def remap_edges(edges, mapper):
     return [row, col]
 
 
-def get_adj_matrix(dataset, data=None):
+def get_adj_matrix(dataset: InMemoryDataset, data=None) -> np.ndarray:
     if data is None:
         data = dataset.data
     num_nodes = data.x.shape[0]
@@ -96,7 +101,7 @@ def get_adj_matrix(dataset, data=None):
     return adj_matrix
 
 
-def get_rw_matrix(adj_matrix, self_loops=0.0):
+def get_rw_matrix(adj_matrix: np.ndarray, self_loops=0.0) -> np.ndarray:
     num_nodes = adj_matrix.shape[0]
     A_tilde = adj_matrix + self_loops * np.eye(num_nodes)
     D_tilde = np.diag(1/A_tilde.sum(axis=1))
@@ -104,7 +109,7 @@ def get_rw_matrix(adj_matrix, self_loops=0.0):
     return H
 
 
-def get_sym_matrix(adj_matrix, self_loops=1.0):
+def get_sym_matrix(adj_matrix: np.ndarray, self_loops=1.0) -> np.ndarray:
     num_nodes = adj_matrix.shape[0]
     A_tilde = adj_matrix + self_loops * np.eye(num_nodes)
     D_tilde = np.diag(1/np.sqrt(A_tilde.sum(axis=1)))
@@ -112,7 +117,11 @@ def get_sym_matrix(adj_matrix, self_loops=1.0):
     return H
 
 
-def get_ppr_matrix(adj_matrix, alpha=0.1, t_matrix='sym', self_loops=1.0):
+def get_ppr_matrix(
+        adj_matrix: np.ndarray,
+        alpha: float = 0.1,
+        t_matrix: str = 'sym',
+        self_loops: float = 1.0) -> np.ndarray:
     num_nodes = adj_matrix.shape[0]
     if t_matrix == 'sym':
         if np.diag(adj_matrix).sum() > 0:
@@ -127,7 +136,11 @@ def get_ppr_matrix(adj_matrix, alpha=0.1, t_matrix='sym', self_loops=1.0):
 
 
 # see Berberidis et al., 2019 (https://arxiv.org/abs/1804.02081)
-def get_heat_matrix(adj_matrix, t=5.0, t_matrix='sym', self_loops=1.0):
+def get_heat_matrix(
+        adj_matrix: np.ndarray,
+        t: float = 5.0,
+        t_matrix: str = 'sym',
+        self_loops: float = 1.0) -> np.ndarray:
     num_nodes = adj_matrix.shape[0]
     if t_matrix == 'sym':
         if np.diag(adj_matrix).sum() > 0:
@@ -141,7 +154,7 @@ def get_heat_matrix(adj_matrix, t=5.0, t_matrix='sym', self_loops=1.0):
     return heat_matrix
 
 
-def get_top_k_matrix(A, k=16, normalization='col_one'):
+def get_top_k_matrix(A: np.ndarray, k: int = 16, normalization: str = 'col_one') -> np.ndarray:
     num_nodes = A.shape[0]
     row_idx = np.arange(num_nodes)
     if normalization == 'None':
@@ -177,7 +190,7 @@ def get_top_k_matrix(A, k=16, normalization='col_one'):
     return A
 
 
-def calculate_eps(A, avg_degree):
+def calculate_eps(A: np.ndarray, avg_degree: int) -> float:
     num_nodes = A.shape[0]
     B = A.flatten()
     B.sort()
@@ -186,7 +199,7 @@ def calculate_eps(A, avg_degree):
     return B[-avg_degree*num_nodes]
 
 
-def get_clipped_matrix(A, eps=0.01, normalization='col_one'):
+def get_clipped_matrix(A: np.ndarray, eps: float = 0.01, normalization: str = 'col_one') -> np.ndarray:
     # if eps >= 1, interpret as avg_degree
     if eps >= 1:
         eps = calculate_eps(A, eps)
@@ -237,7 +250,11 @@ def get_clipped_matrix(A, eps=0.01, normalization='col_one'):
     return A
 
 
-def set_train_val_test_split(seed, data, num_development=1500, num_per_class=20, development_seed=1684992425):
+def set_train_val_test_split(
+        seed: int,
+        data: Data,
+        num_development: int = 1500,
+        num_per_class: int = 20) -> Data:
     rnd_state = np.random.RandomState(development_seed)
     num_nodes = data.y.shape[0]
     development_idx = rnd_state.choice(num_nodes, num_development, replace=False)
@@ -266,14 +283,14 @@ def set_train_val_test_split(seed, data, num_development=1500, num_per_class=20,
 
 class PPRDataset(InMemoryDataset):
     def __init__(self,
-                 name='Cora',
-                 use_lcc=True,
-                 alpha=0.1,
-                 t_matrix='sym',
-                 self_loops=1.0,
-                 k=16,
-                 eps=None,
-                 sparse_normalization='col_one'):
+                 name: str = 'Cora',
+                 use_lcc: bool = True,
+                 alpha: float = 0.1,
+                 t_matrix: str = 'sym',
+                 self_loops: float = 1.0,
+                 k: int = 16,
+                 eps: float = None,
+                 sparse_normalization: str = 'col_one'):
         self.name = name
         self.use_lcc = use_lcc
         self.alpha = alpha
@@ -286,14 +303,12 @@ class PPRDataset(InMemoryDataset):
         super(PPRDataset, self).__init__(DATA_PATH)
         self.data, self.slices = torch.load(self.processed_paths[0])
 
-        print(f'name={str(self)};num_nodes={self.data.x.shape[0]};num_edges={self.data.edge_index.shape[1]}')
-
     @property
-    def raw_file_names(self):
+    def raw_file_names(self) -> list:
         return []
 
     @property
-    def processed_file_names(self):
+    def processed_file_names(self) -> list:
         return [str(self) + '.pt']
 
     def download(self):
@@ -341,7 +356,7 @@ class PPRDataset(InMemoryDataset):
         data, slices = self.collate([data])
         torch.save((data, slices), self.processed_paths[0])
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.k is not None:
             k = format(self.k, 'd')
             eps = 'None'
@@ -357,14 +372,14 @@ class PPRDataset(InMemoryDataset):
 # Use approximate heat matrix as described in Berberidis et al., 2019 (https://arxiv.org/abs/1804.02081)
 class HeatDataset(InMemoryDataset):
     def __init__(self,
-                 name='Cora',
-                 use_lcc=True,
-                 t=5.0,
-                 t_matrix='sym',
-                 self_loops=1.0,
-                 k=16,
-                 eps=None,
-                 sparse_normalization='col_one'):
+                 name: str = 'Cora',
+                 use_lcc: bool = True,
+                 t: float = 5.0,
+                 t_matrix: str = 'sym',
+                 self_loops: float = 1.0,
+                 k: int = 16,
+                 eps: float = None,
+                 sparse_normalization: str = 'col_one'):
         self.name = name
         self.use_lcc = use_lcc
         self.t = t
@@ -377,14 +392,12 @@ class HeatDataset(InMemoryDataset):
         super(HeatDataset, self).__init__(DATA_PATH)
         self.data, self.slices = torch.load(self.processed_paths[0])
 
-        print(f'name={str(self)};num_nodes={self.data.x.shape[0]};num_edges={self.data.edge_index.shape[1]}')
-
     @property
-    def raw_file_names(self):
+    def raw_file_names(self) -> list:
         return []
 
     @property
-    def processed_file_names(self):
+    def processed_file_names(self) -> list:
         return [str(self) + '.pt']
 
     def download(self):
@@ -430,7 +443,7 @@ class HeatDataset(InMemoryDataset):
         data, slices = self.collate([data])
         torch.save((data, slices), self.processed_paths[0])
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.k is not None:
             k = format(self.k, 'd')
             eps = 'None'

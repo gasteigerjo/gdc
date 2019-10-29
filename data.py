@@ -200,7 +200,7 @@ def calculate_eps(A: np.ndarray, avg_degree: int) -> float:
 
 
 def get_clipped_matrix(A: np.ndarray, eps: float = 0.01, normalization: str = 'col_one') -> np.ndarray:
-    # if eps >= 1, interpret as avg_degree
+    # Interpret eps as target average degree if eps >= 1
     if eps >= 1:
         eps = calculate_eps(A, eps)
         print(f'Selected new threshold {eps}.')

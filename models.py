@@ -10,12 +10,12 @@ from torch_geometric.nn import GCNConv
 from torch_geometric.data import Data, InMemoryDataset
 
 
-class GCNConvNet(torch.nn.Module):
+class GCN(torch.nn.Module):
     def __init__(self,
                  dataset: InMemoryDataset,
                  hidden: List[int] = [64],
                  dropout: float = 0.5):
-        super(GCNConvNet, self).__init__()
+        super().__init__()
 
         num_features = [dataset.data.x.shape[1]] + hidden + [dataset.num_classes]
         layers = []

@@ -7,7 +7,7 @@
 Reference implementation (example) of the model proposed in the paper:
 
 **[Diffusion Improves Graph Learning](https://www.kdd.in.tum.de/gdc)**   
-by Johannes Klicpera, Stefane Weißenberger, Stephan Günnemann   
+by Johannes Klicpera, Stefan Weißenberger, Stephan Günnemann   
 Published at NeurIPS 2019.
 
 ## Run the code

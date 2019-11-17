@@ -4,8 +4,7 @@ __license__ = "MIT"
 from typing import List
 
 import torch
-import torch.nn.functional as F
-from torch.nn import Linear, ModuleList, Dropout, ReLU
+from torch.nn import ModuleList, Dropout, ReLU
 from torch_geometric.nn import GCNConv
 from torch_geometric.data import Data, InMemoryDataset
 
@@ -15,11 +14,11 @@ class GCN(torch.nn.Module):
                  dataset: InMemoryDataset,
                  hidden: List[int] = [64],
                  dropout: float = 0.5):
-        super().__init__()
+        super(GCN, self).__init__()
 
         num_features = [dataset.data.x.shape[1]] + hidden + [dataset.num_classes]
         layers = []
-        for i, (in_features, out_features) in enumerate(zip(num_features[:-1], num_features[1:])):
+        for in_features, out_features in zip(num_features[:-1], num_features[1:]):
             layers.append(GCNConv(in_features, out_features))
         self.layers = ModuleList(layers)
 
@@ -27,8 +26,6 @@ class GCN(torch.nn.Module):
         self.non_reg_params = list([p for l in layers[1:] for p in l.parameters()])
 
         self.dropout = Dropout(p=dropout)
-
-        self.out_fn = lambda x: F.log_softmax(x, dim=1)
         self.act_fn = ReLU()
 
     def reset_parameters(self):
@@ -47,4 +44,4 @@ class GCN(torch.nn.Module):
             x = self.act_fn(x)
             x = self.dropout(x)
 
-        return self.out_fn(x)
+        return torch.nn.functional.log_softmax(x, dim=1)

@@ -1,0 +1,32 @@
+dataset_name: 'Cora'
+architecture: 'GCN'
+test: True
+use_lcc: True
+num_development: 1500
+
+none:
+  hidden_layers: 1
+  hidden_units: 64
+  lr: 0.01
+  dropout: 0.5
+  weight_decay: 0.05931537406301254
+
+heat:
+  hidden_layers: 1
+  hidden_units: 64
+  dropout: 0.5
+  lr: 0.01
+  weight_decay: 0.0861202357056583
+  t: 5.0
+  k:
+  eps: 0.0001
+
+ppr:
+  hidden_layers: 1
+  hidden_units: 64
+  lr: 0.01
+  dropout: 0.5
+  weight_decay: 0.09604826107599472
+  alpha: 0.05
+  k: 128
+  eps:

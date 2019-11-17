@@ -25,7 +25,7 @@ def get_dataset(name: str, use_lcc: bool = True) -> InMemoryDataset:
     elif name == 'CoauthorCS':
         dataset = Coauthor(path, 'CS')
     else:
-        raise Exception(f'Dataset not known: {name}.')
+        raise Exception('Unknown dataset.')
 
     if use_lcc:
         lcc = get_largest_connected_component(dataset)
@@ -33,7 +33,7 @@ def get_dataset(name: str, use_lcc: bool = True) -> InMemoryDataset:
         x_new = dataset.data.x[lcc]
         y_new = dataset.data.y[lcc]
 
-        row, col = np.array(dataset.data.edge_index.detach().cpu())
+        row, col = dataset.data.edge_index.numpy()
         edges = [[i, j] for i, j in zip(row, col) if i in lcc and j in lcc]
         edges = remap_edges(edges, get_node_mapper(lcc))
 
@@ -53,7 +53,7 @@ def get_dataset(name: str, use_lcc: bool = True) -> InMemoryDataset:
 def get_component(dataset: InMemoryDataset, start: int = 0) -> set:
     visited_nodes = set()
     queued_nodes = set([start])
-    row, col = np.array(dataset.data.edge_index.detach().cpu())
+    row, col = dataset.data.edge_index.numpy()
     while queued_nodes:
         current_node = queued_nodes.pop()
         visited_nodes.update([current_node])
@@ -91,163 +91,49 @@ def remap_edges(edges: list, mapper: dict) -> list:
     return [row, col]
 
 
-def get_adj_matrix(dataset: InMemoryDataset, data=None) -> np.ndarray:
-    if data is None:
-        data = dataset.data
-    num_nodes = data.x.shape[0]
+def get_adj_matrix(dataset: InMemoryDataset) -> np.ndarray:
+    num_nodes = dataset.data.x.shape[0]
     adj_matrix = np.zeros(shape=(num_nodes, num_nodes))
-    for i, j in zip(data.edge_index[0], data.edge_index[1]):
+    for i, j in zip(dataset.data.edge_index[0], dataset.data.edge_index[1]):
         adj_matrix[i, j] = 1.
     return adj_matrix
 
 
-def get_rw_matrix(adj_matrix: np.ndarray, self_loops=0.0) -> np.ndarray:
-    num_nodes = adj_matrix.shape[0]
-    A_tilde = adj_matrix + self_loops * np.eye(num_nodes)
-    D_tilde = np.diag(1/A_tilde.sum(axis=1))
-    H = A_tilde @ D_tilde
-    return H
-
-
-def get_sym_matrix(adj_matrix: np.ndarray, self_loops=1.0) -> np.ndarray:
-    num_nodes = adj_matrix.shape[0]
-    A_tilde = adj_matrix + self_loops * np.eye(num_nodes)
-    D_tilde = np.diag(1/np.sqrt(A_tilde.sum(axis=1)))
-    H = D_tilde @ A_tilde @ D_tilde
-    return H
-
-
 def get_ppr_matrix(
         adj_matrix: np.ndarray,
-        alpha: float = 0.1,
-        t_matrix: str = 'sym',
-        self_loops: float = 1.0) -> np.ndarray:
+        alpha: float = 0.1) -> np.ndarray:
     num_nodes = adj_matrix.shape[0]
-    if t_matrix == 'sym':
-        if np.diag(adj_matrix).sum() > 0:
-            raise Exception('Adjacency matrix already contains self loops.')
-        H = get_sym_matrix(adj_matrix, self_loops)
-    elif t_matrix == 'rw':
-        H = get_rw_matrix(adj_matrix, self_loops)
-    else:
-        raise Exception(f'Transition matrix not known: {t_matrix}.')
-    ppr_matrix = alpha * np.linalg.inv(np.eye(num_nodes) - (1 - alpha)*H)
-    return ppr_matrix
+    A_tilde = adj_matrix + np.eye(num_nodes)
+    D_tilde = np.diag(1/np.sqrt(A_tilde.sum(axis=1)))
+    H = D_tilde @ A_tilde @ D_tilde
+    return alpha * np.linalg.inv(np.eye(num_nodes) - (1 - alpha) * H)
 
 
-# see Berberidis et al., 2019 (https://arxiv.org/abs/1804.02081)
 def get_heat_matrix(
         adj_matrix: np.ndarray,
-        t: float = 5.0,
-        t_matrix: str = 'sym',
-        self_loops: float = 1.0) -> np.ndarray:
+        t: float = 5.0) -> np.ndarray:
     num_nodes = adj_matrix.shape[0]
-    if t_matrix == 'sym':
-        if np.diag(adj_matrix).sum() > 0:
-            raise Exception('Adjacency matrix already contains self loops.')
-        H = get_sym_matrix(adj_matrix, self_loops)
-    elif t_matrix == 'rw':
-        H = get_rw_matrix(adj_matrix, self_loops)
-    else:
-        raise Exception(f'Transition matrix not known: {t_matrix}.')
-    heat_matrix = expm(-t*(np.eye(num_nodes) - H))
-    return heat_matrix
+    A_tilde = adj_matrix + np.eye(num_nodes)
+    D_tilde = np.diag(1/np.sqrt(A_tilde.sum(axis=1)))
+    H = D_tilde @ A_tilde @ D_tilde
+    return expm(-t * (np.eye(num_nodes) - H))
 
 
-def get_top_k_matrix(A: np.ndarray, k: int = 16, normalization: str = 'col_one') -> np.ndarray:
+def get_top_k_matrix(A: np.ndarray, k: int = 128) -> np.ndarray:
     num_nodes = A.shape[0]
     row_idx = np.arange(num_nodes)
-    if normalization == 'None':
-        A[A.argsort(axis=0)[:num_nodes - k], row_idx] = 0.
-    elif normalization == 'col_one':
-        A[A.argsort(axis=0)[:num_nodes - k], row_idx] = 0.
-        norm = A.sum(axis=0)
-        norm[norm <= 0] = 1 # avoid dividing by zero
-        A = A/norm
-    elif normalization == 'row_one':
-        A = A.transpose()
-        A[A.argsort(axis=0)[:num_nodes - k], row_idx] = 0.
-        norm = A.sum(axis=0)
-        norm[norm <= 0] = 1 # avoid dividing by zero
-        A = A/norm
-        A = A.transpose()
-    elif normalization == 'col_weights':
-        weights = A.sum(axis=0)
-        A[A.argsort(axis=0)[:num_nodes - k], row_idx] = 0.
-        norm = A.sum(axis=0)
-        norm[norm <= 0] = 1 # avoid dividing by zero
-        A = A*weights/norm
-    elif normalization == 'row_weights':
-        A = A.transpose()
-        weights = A.sum(axis=0)
-        A[A.argsort(axis=0)[:num_nodes - k], row_idx] = 0.
-        norm = A.sum(axis=0)
-        norm[norm <= 0] = 1 # avoid dividing by zero
-        A = A*weights/norm
-        A = A.transpose()
-    else:
-        raise Exception(f'Normalization not known: {normalization}.')
-    return A
+    A[A.argsort(axis=0)[:num_nodes - k], row_idx] = 0.
+    norm = A.sum(axis=0)
+    norm[norm <= 0] = 1 # avoid dividing by zero
+    return A/norm
 
 
-def calculate_eps(A: np.ndarray, avg_degree: int) -> float:
+def get_clipped_matrix(A: np.ndarray, eps: float = 0.01) -> np.ndarray:
     num_nodes = A.shape[0]
-    B = A.flatten()
-    B.sort()
-    if avg_degree*num_nodes > len(B):
-        return -np.inf
-    return B[-avg_degree*num_nodes]
-
-
-def get_clipped_matrix(A: np.ndarray, eps: float = 0.01, normalization: str = 'col_one') -> np.ndarray:
-    # Interpret eps as target average degree if eps >= 1
-    if eps >= 1:
-        eps = calculate_eps(A, eps)
-        print(f'Selected new threshold {eps}.')
-    num_nodes = A.shape[0]
-    if normalization == 'None':
-        A[A < eps] = 0.
-    elif normalization == 'col_one':
-        A[A < eps] = 0.
-        norm = A.sum(axis=0)
-        norm[norm <= 0] = 1 # avoid dividing by zero
-        A = A/norm
-    elif normalization == 'row_one':
-        A[A < eps] = 0.
-        norm = A.sum(axis=1).reshape(num_nodes, 1)
-        norm[norm <= 0] = 1 # avoid dividing by zero
-        A = A/norm
-    elif normalization == 'col_weights':
-        weights = A.sum(axis=0)
-        A[A < eps] = 0.
-        norm = A.sum(axis=0)
-        norm[norm <= 0] = 1 # avoid dividing by zero
-        A = A*weights/norm
-    elif normalization == 'row_weights':
-        weights = A.sum(axis=1).reshape(num_nodes, 1)
-        A[A < eps] = 0.
-        norm = A.sum(axis=1).reshape(num_nodes, 1)
-        norm[norm <= 0] = 1 # avoid dividing by zero
-        A = A*weights/norm
-    elif normalization == 'sym_one':
-        A[A < eps] = 0.
-        col_norm = np.sqrt(A.sum(axis=0))
-        row_norm = np.sqrt(A.sum(axis=1).reshape(num_nodes, 1))
-        col_norm[col_norm <= 0] = 1 # avoid dividing by zero
-        row_norm[row_norm <= 0] = 1
-        A = A/col_norm/row_norm
-    elif normalization == 'sym_weights':
-        col_weights = A.sum(axis=0)
-        row_weights = A.sum(axis=1).reshape(num_nodes, 1)
-        A[A < eps] = 0.
-        col_norm = np.sqrt(A.sum(axis=0))
-        row_norm = np.sqrt(A.sum(axis=1).reshape(num_nodes, 1))
-        col_norm[col_norm <= 0] = 1 # avoid dividing by zero
-        row_norm[row_norm <= 0] = 1
-        A = A*col_weights*row_weights/col_norm/row_norm
-    else:
-        raise Exception(f'Normalization not known: {normalization}.')
-    return A
+    A[A < eps] = 0.
+    norm = A.sum(axis=0)
+    norm[norm <= 0] = 1 # avoid dividing by zero
+    return A/norm
 
 
 def set_train_val_test_split(
@@ -262,8 +148,7 @@ def set_train_val_test_split(
 
     train_idx = []
     rnd_state = np.random.RandomState(seed)
-    num_classes = data.y.max() + 1
-    for c in range(num_classes):
+    for c in range(data.y.max() + 1):
         class_idx = development_idx[np.where(data.y[development_idx].cpu() == c)[0]]
         train_idx.extend(rnd_state.choice(class_idx, num_per_class, replace=False))
 
@@ -278,7 +163,7 @@ def set_train_val_test_split(
     data.val_mask = get_mask(val_idx)
     data.test_mask = get_mask(test_idx)
 
-    return data
+    return data.to('cuda')
 
 
 class PPRDataset(InMemoryDataset):
@@ -291,19 +176,13 @@ class PPRDataset(InMemoryDataset):
                  name: str = 'Cora',
                  use_lcc: bool = True,
                  alpha: float = 0.1,
-                 t_matrix: str = 'sym',
-                 self_loops: float = 1.0,
                  k: int = 16,
-                 eps: float = None,
-                 sparse_normalization: str = 'col_one'):
+                 eps: float = None):
         self.name = name
         self.use_lcc = use_lcc
         self.alpha = alpha
-        self.t_matrix = t_matrix
-        self.self_loops = self_loops
         self.k = k
         self.eps = eps
-        self.sparse_normalization = sparse_normalization
 
         super(PPRDataset, self).__init__(DATA_PATH)
         self.data, self.slices = torch.load(self.processed_paths[0])
@@ -325,18 +204,16 @@ class PPRDataset(InMemoryDataset):
         adj_matrix = get_adj_matrix(base)
         # obtain exact PPR matrix
         ppr_matrix = get_ppr_matrix(adj_matrix,
-                                    alpha=self.alpha,
-                                    t_matrix=self.t_matrix,
-                                    self_loops=self.self_loops)
+                                        alpha=self.alpha)
 
         if self.k:
-            if self.eps is not None:
-                raise Exception('Both k and eps are not None.')
-            ppr_matrix = get_top_k_matrix(ppr_matrix, k=self.k, normalization=self.sparse_normalization)
+            print(f'Selecting top {self.k} edges per node.')
+            ppr_matrix = get_top_k_matrix(ppr_matrix, k=self.k)
         elif self.eps:
-            ppr_matrix = get_clipped_matrix(ppr_matrix, eps=self.eps, normalization=self.sparse_normalization)
+            print(f'Selecting edges with weight greater than {self.eps}.')
+            ppr_matrix = get_clipped_matrix(ppr_matrix, eps=self.eps)
         else:
-            raise Exception('Both k and eps are None.')
+            raise ValueError
 
         # create PyG Data object
         edges_i = []
@@ -358,23 +235,14 @@ class PPRDataset(InMemoryDataset):
             test_mask=torch.zeros(base.data.test_mask.size()[0]).byte(),
             val_mask=torch.zeros(base.data.val_mask.size()[0]).byte()
         )
+
         data, slices = self.collate([data])
         torch.save((data, slices), self.processed_paths[0])
 
     def __str__(self) -> str:
-        if self.k is not None:
-            k = format(self.k, 'd')
-            eps = 'None'
-        else:
-            k = 'None'
-            eps = format(self.eps, '.8f')
-        return (
-            f'ppr_{self.name}_use_lcc={self.use_lcc}_alpha={self.alpha:.2f}_t_matrix={self.t_matrix}' +
-            f'_self_loops={self.self_loops:.2f}_k={k}_eps={eps}_sparse_normalization={self.sparse_normalization}'
-        )
+        return f'{self.name}_ppr_alpha={self.alpha}_k={self.k}_eps={self.eps}_lcc={self.use_lcc}'
 
 
-# Use approximate heat matrix as described in Berberidis et al., 2019 (https://arxiv.org/abs/1804.02081)
 class HeatDataset(InMemoryDataset):
     """
     Dataset preprocessed with GDC using heat kernel diffusion.
@@ -386,19 +254,13 @@ class HeatDataset(InMemoryDataset):
                  name: str = 'Cora',
                  use_lcc: bool = True,
                  t: float = 5.0,
-                 t_matrix: str = 'sym',
-                 self_loops: float = 1.0,
                  k: int = 16,
-                 eps: float = None,
-                 sparse_normalization: str = 'col_one'):
+                 eps: float = None):
         self.name = name
         self.use_lcc = use_lcc
         self.t = t
-        self.t_matrix = t_matrix
-        self.self_loops = self_loops
         self.k = k
         self.eps = eps
-        self.sparse_normalization = sparse_normalization
 
         super(HeatDataset, self).__init__(DATA_PATH)
         self.data, self.slices = torch.load(self.processed_paths[0])
@@ -420,18 +282,15 @@ class HeatDataset(InMemoryDataset):
         adj_matrix = get_adj_matrix(base)
         # get heat matrix as described in Berberidis et al., 2019
         heat_matrix = get_heat_matrix(adj_matrix,
-                                      t=self.t,
-                                      t_matrix=self.t_matrix,
-                                      self_loops=self.self_loops)
-
+                                          t=self.t)
         if self.k:
-            if self.eps is not None:
-                raise Exception('Both k and eps are not None.')
-            heat_matrix = get_top_k_matrix(heat_matrix, k=self.k, normalization=self.sparse_normalization)
+            print(f'Selecting top {self.k} edges per node.')
+            heat_matrix = get_top_k_matrix(heat_matrix, k=self.k)
         elif self.eps:
-            heat_matrix = get_clipped_matrix(heat_matrix, eps=self.eps, normalization=self.sparse_normalization)
+            print(f'Selecting edges with weight greater than {self.eps}.')
+            heat_matrix = get_clipped_matrix(heat_matrix, eps=self.eps)
         else:
-            raise Exception('Both k and eps are None.')
+            raise ValueError
 
         # create PyG Data object
         edges_i = []
@@ -444,24 +303,18 @@ class HeatDataset(InMemoryDataset):
                 edge_attr.append(heat_matrix[i, j])
         edge_index = [edges_i, edges_j]
 
-        data = Data(x=base.data.x,
-                    edge_index=torch.LongTensor(edge_index),
-                    edge_attr=torch.FloatTensor(edge_attr),
-                    y=base.data.y,
-                    train_mask=torch.zeros(base.data.train_mask.size()[0]).byte(),
-                    test_mask=torch.zeros(base.data.test_mask.size()[0]).byte(),
-                    val_mask=torch.zeros(base.data.val_mask.size()[0]).byte())
+        data = Data(
+            x=base.data.x,
+            edge_index=torch.LongTensor(edge_index),
+            edge_attr=torch.FloatTensor(edge_attr),
+            y=base.data.y,
+            train_mask=torch.zeros(base.data.train_mask.size()[0]).byte(),
+            test_mask=torch.zeros(base.data.test_mask.size()[0]).byte(),
+            val_mask=torch.zeros(base.data.val_mask.size()[0]).byte()
+        )
+
         data, slices = self.collate([data])
         torch.save((data, slices), self.processed_paths[0])
 
     def __str__(self) -> str:
-        if self.k is not None:
-            k = format(self.k, 'd')
-            eps = 'None'
-        else:
-            k = 'None'
-            eps = format(self.eps, '.8f')
-        return (
-            f'heat_{self.name}_use_lcc={self.use_lcc}_t={self.t:.2f}_t_matrix={self.t_matrix}' +
-            f'_self_loops={self.self_loops:.2f}_k={k}_eps={eps}_sparse_normalization={self.sparse_normalization}'
-        )
+        return f'{self.name}_heat_t={self.t}_k={self.k}_eps={self.eps}_lcc={self.use_lcc}'

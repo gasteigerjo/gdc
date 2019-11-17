@@ -163,7 +163,7 @@ def set_train_val_test_split(
     data.val_mask = get_mask(val_idx)
     data.test_mask = get_mask(test_idx)
 
-    return data.to('cuda')
+    return data
 
 
 class PPRDataset(InMemoryDataset):

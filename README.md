@@ -25,7 +25,7 @@ tqdm
 seaborn
 ```
 
-# Alternative implementation
+## PyTorch Geometric implementation
 
 GDC is also implemented as a transformation (preprocessing step) in [PyTorch Geometric](https://github.com/rusty1s/pytorch_geometric). So you can just apply it to your own dataset and see how your existing PyG model improves!
 

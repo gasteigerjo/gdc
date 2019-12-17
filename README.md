@@ -17,12 +17,13 @@ This repository primarily contains a demonstration of enhancing a graph convolut
 The repository uses these packages:
 
 ```
+pyyaml
+tqdm>=4.36
 numpy
 scipy
-pytorch>=1.0
-pytorch_geometric
-tqdm
 seaborn
+pytorch>=1.3
+pytorch_geometric
 ```
 
 ## PyTorch Geometric

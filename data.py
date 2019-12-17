@@ -36,14 +36,14 @@ def get_dataset(name: str, use_lcc: bool = True) -> InMemoryDataset:
         row, col = dataset.data.edge_index.numpy()
         edges = [[i, j] for i, j in zip(row, col) if i in lcc and j in lcc]
         edges = remap_edges(edges, get_node_mapper(lcc))
-
+        
         data = Data(
             x=x_new,
             edge_index=torch.LongTensor(edges),
             y=y_new,
-            train_mask=torch.zeros(y_new.size()[0]).byte(),
-            test_mask=torch.zeros(y_new.size()[0]).byte(),
-            val_mask=torch.zeros(y_new.size()[0]).byte()
+            train_mask=torch.zeros(y_new.size()[0], dtype=torch.bool),
+            test_mask=torch.zeros(y_new.size()[0], dtype=torch.bool),
+            val_mask=torch.zeros(y_new.size()[0], dtype=torch.bool)
         )
         dataset.data = data
 
@@ -155,7 +155,7 @@ def set_train_val_test_split(
     val_idx = [i for i in development_idx if i not in train_idx]
 
     def get_mask(idx):
-        mask = torch.zeros(num_nodes, dtype=torch.uint8)
+        mask = torch.zeros(num_nodes, dtype=torch.bool)
         mask[idx] = 1
         return mask
 
@@ -231,9 +231,9 @@ class PPRDataset(InMemoryDataset):
             edge_index=torch.LongTensor(edge_index),
             edge_attr=torch.FloatTensor(edge_attr),
             y=base.data.y,
-            train_mask=torch.zeros(base.data.train_mask.size()[0]).byte(),
-            test_mask=torch.zeros(base.data.test_mask.size()[0]).byte(),
-            val_mask=torch.zeros(base.data.val_mask.size()[0]).byte()
+            train_mask=torch.zeros(base.data.train_mask.size()[0], dtype=torch.bool),
+            test_mask=torch.zeros(base.data.test_mask.size()[0], dtype=torch.bool),
+            val_mask=torch.zeros(base.data.val_mask.size()[0], dtype=torch.bool)
         )
 
         data, slices = self.collate([data])
@@ -308,9 +308,9 @@ class HeatDataset(InMemoryDataset):
             edge_index=torch.LongTensor(edge_index),
             edge_attr=torch.FloatTensor(edge_attr),
             y=base.data.y,
-            train_mask=torch.zeros(base.data.train_mask.size()[0]).byte(),
-            test_mask=torch.zeros(base.data.test_mask.size()[0]).byte(),
-            val_mask=torch.zeros(base.data.val_mask.size()[0]).byte()
+            train_mask=torch.zeros(base.data.train_mask.size()[0], dtype=torch.bool),
+            test_mask=torch.zeros(base.data.test_mask.size()[0], dtype=torch.bool),
+            val_mask=torch.zeros(base.data.val_mask.size()[0], dtype=torch.bool)
         )
 
         data, slices = self.collate([data])

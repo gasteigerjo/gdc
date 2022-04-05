@@ -1,4 +1,4 @@
-__author__ = "Stefan Weißenberger and Johannes Klicpera"
+__author__ = "Stefan Weißenberger and Johannes Gasteiger"
 __license__ = "MIT"
 
 from typing import List

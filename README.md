@@ -6,7 +6,7 @@
 
 Reference implementation (example) of the model proposed in the paper:
 
-**[Diffusion Improves Graph Learning](https://www.kdd.in.tum.de/gdc)**   
+**[Diffusion Improves Graph Learning](https://www.cs.cit.tum.de/daml/gdc/)**   
 by Johannes Gasteiger, Stefan Weißenberger, Stephan Günnemann   
 Published at NeurIPS 2019.
 
